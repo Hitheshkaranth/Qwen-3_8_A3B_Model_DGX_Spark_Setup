@@ -1,0 +1,7 @@
+models/
+*.log
+*.pid
+benchmarks/
+docs/
+assets/
+.git/

@@ -1,0 +1,10 @@
+# Weights (BF16 source ~67 GiB, quantized ~23 GB) are downloaded/built locally
+models/
+
+# Runtime artifacts
+*.log
+*.pid
+__pycache__/
+
+# Raw benchmark output lands here before being copied into results/
+/results-*.json

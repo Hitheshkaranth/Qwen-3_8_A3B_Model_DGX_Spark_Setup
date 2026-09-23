@@ -1,0 +1,6 @@
+# Throwaway quantization image: the serving image's CUDA torch + llm-compressor.
+# --no-deps on llmcompressor/compressed-tensors so torch/transformers stay put;
+# datasets (imported by llmcompressor at import time) is pure-python-ish and safe.
+FROM vllm-qwen38-a3b:local
+RUN pip install --no-cache-dir datasets && \
+    pip install --no-cache-dir --no-deps llmcompressor==0.14.0 compressed-tensors==0.19.0 accelerate
