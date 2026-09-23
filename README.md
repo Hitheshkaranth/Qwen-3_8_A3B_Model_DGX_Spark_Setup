@@ -496,11 +496,38 @@ at about 17:58.
 
 ### Reasoning & Output Length
 
-> **In progress.** The same 100 GSM8K + 100 MATH-500 problems and 4 long-form prompts are being
-> run on both models with identical sampling (`temperature=0.6, top_p=0.95, top_k=20`,
-> 16k-token limit for math, 32k for long-form). Results and a chart will be added here.
+Measured on this deployment on 2026-09-23 with the model card's thinking-mode sampling
+(`temperature=0.6, top_p=0.95, top_k=20`) and 16 requests in flight:
 
-Script: [`reasoning_bench.py`](benchmarks/reasoning_bench.py).
+| Test | Qwen3.8-35B-A3B (this repo) | Qwen3.6-35B-A3B (NVIDIA NVFP4) |
+|---|---:|---:|
+| **GSM8K**, first 100 test problems | **99%** (99/100) | *pending* |
+| avg / max output tokens | 303 / 1,251 | |
+| hit the 16,384-token limit | 0 | |
+| **MATH-500**, first 100 with integer answers | **94%** (94/100) | *pending* |
+| avg / max output tokens | 2,263 / 16,384 | |
+| hit the 16,384-token limit | 6 | |
+| **Long-form**, 4 prompts, 32,768-token cap | avg **20,723** tokens | *pending* |
+| per prompt: API guide / 10k-word story / computing history / chess engine | 29,714 / 32,768 (cap) / 3,727 / 16,683 | |
+
+What the numbers show:
+
+- **Grade-school math is essentially solved**, with very short reasoning: 303 tokens on average.
+- **On harder math it scores 94%.** Six problems used the entire 16,384-token budget. The
+  6 misses are consistent with those truncations, but the answers weren't saved, so this isn't
+  confirmed. Qwen recommends 32,768 tokens (81,920 for competition math), so a larger
+  `max_tokens` would likely recover some.
+- **It still writes long outputs when asked.** The model card warns that training on examples
+  of at most 8,192 tokens makes outputs shorter, yet three of four long-form prompts produced
+  16k–33k tokens, and one filled the 32,768 cap. The generated text wasn't saved, so how good
+  those long outputs are wasn't checked.
+- The Qwen3.6 column will be filled in by running the same script against the Qwen3.6 server.
+  That needs Qwen3.8 stopped, because only one model fits in memory at a time.
+
+Raw results: [`reasoning_result_qwen38.json`](benchmarks/reasoning_result_qwen38.json) ·
+script: [`reasoning_bench.py`](benchmarks/reasoning_bench.py). Wall times in the JSON may include
+other traffic on the server and aren't a throughput measure. Use the throughput benchmark above
+for speed.
 
 ### Published Scores
 
@@ -595,6 +622,7 @@ Qwen-3_8_A3B_Model_DGX_Spark_Setup/
 │   ├── throughput_result.json       # raw results cited above
 │   ├── throughput_comparison.png    # chart
 │   ├── reasoning_bench.py           # GSM8K / MATH-500 accuracy + long-form length
+│   ├── reasoning_result_qwen38.json # raw reasoning results cited above
 │   └── make_charts.py               # renders the PNGs from the JSON results
 ├── assets/
 │   └── grafana-dashboard-qwen38.png # live dashboard under benchmark load
