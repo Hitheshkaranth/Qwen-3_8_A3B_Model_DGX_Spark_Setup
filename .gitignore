@@ -8,3 +8,13 @@ __pycache__/
 
 # Raw benchmark output lands here before being copied into results/
 /results-*.json
+
+# Gateway secrets and runtime data (generated locally by gateway/setup.sh etc.)
+gateway/keys.json
+gateway/upstream.key
+gateway/usage.db*
+gateway/devices.csv
+gateway/*.csv
+gateway/venv/
+gateway/container-backups/
+*.bak-*

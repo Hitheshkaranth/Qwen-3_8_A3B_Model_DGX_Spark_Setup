@@ -53,6 +53,7 @@ problems that would otherwise silently cost accuracy or stop vLLM from starting 
   - [How the quantization works](#how-the-quantization-works)
 - [Configuration Reference](#configuration-reference)
 - [Hosting on This System](#hosting-on-this-system)
+- [Metering Gateway & Tailscale](#metering-gateway--tailscale)
 - [Benchmarks](#benchmarks)
   - [Throughput vs. Qwen3.6](#throughput-vs-qwen36)
   - [Under Load: Grafana During the Benchmark](#under-load-grafana-during-the-benchmark)
@@ -463,6 +464,53 @@ models/Qwen3.8-35B-A3B-Distill/        67 GiB  BF16 source (can be deleted after
 models/Qwen3.8-35B-A3B-Distill-NVFP4/  23 GB   served checkpoint, mounted read-only into the container
 ```
 
+## Metering Gateway & Tailscale
+
+Every client, whether Open WebUI, opencode or scripts on laptops across the tailnet, reaches the
+model through a small **metering gateway** on `:8080`. It attributes each request to a user,
+device or app, and counts tokens live. vLLM itself is locked so nothing can go around it.
+
+```mermaid
+flowchart LR
+    D(["Tailnet devices
+one key each"]) == ":8080" ==> GW["llm-gateway
+auth · routing · live metering"]
+    O(["Open WebUI
+forwards user email"]) ==> GW
+    GW == "upstream key" ==> V["vLLM :8002
+localhost + docker bridge
+key required"]
+    GW -.-> P[("Prometheus → Grafana
+per-user · per-device · bypass alert")]
+    D -. "direct → refused" .-x V
+    classDef c fill:#5794F2,stroke:#2D5FA3,color:#fff,stroke-width:2px
+    classDef g fill:#FF9830,stroke:#C46F1F,color:#1a1a1a,stroke-width:2px
+    classDef m fill:#73BF69,stroke:#3F7A39,color:#0a1f08,stroke-width:2px
+    classDef o fill:#8E8E93,stroke:#5A5A5E,color:#fff,stroke-width:2px
+    class D,O c
+    class GW g
+    class V m
+    class P o
+```
+
+```bash
+./gateway/setup.sh                                                        # 1. install the gateway (systemd user service, :8080)
+VLLM_API_KEY=$(cat gateway/upstream.key) BIND_ADDRS="127.0.0.1 172.17.0.1" ./run.sh   # 2. lock vLLM behind it
+cd gateway && venv/bin/python tailscale_keys.py && systemctl --user restart llm-gateway  # 3. one key per tailnet device
+```
+
+Clients then use `http://<server-tailscale-ip-or-name>:8080/v1` with their own key.
+
+| What | Where |
+|---|---|
+| Full setup, client configs (opencode, Open WebUI, SDK), Tailscale (per-device keys, tailnet-only binding, HTTPS via `tailscale serve`, ACLs), operations, troubleshooting | **[`docs/GATEWAY.md`](docs/GATEWAY.md)** |
+| Gateway code and helpers | [`gateway/`](gateway/) |
+| Prometheus scrape snippet, Grafana dashboard, bypass alert | [`monitoring/`](monitoring/) |
+
+Input tokens are counted when a request starts (exact count via vLLM `/tokenize`). Output tokens
+are counted as they stream, or on completion for non-streaming calls. Keys, the upstream secret
+and the usage database are generated locally and never committed.
+
 ## Benchmarks
 
 Both models ran on the same box, one at a time, with identical flags and prompts. Scripts and
@@ -634,6 +682,16 @@ Qwen-3_8_A3B_Model_DGX_Spark_Setup/
 ├── quantize.sh                      # step 2: runs quantize.py in the container
 ├── quantize.py                      #   NVFP4/FP8 recipe + gate/up pairing fix + verification
 ├── run.sh                           # step 3: build + run the vLLM server on :8002
+├── gateway/                         # metering gateway (see docs/GATEWAY.md)
+│   ├── gateway.py                   #   auth · routing · live token metering · /metrics
+│   ├── setup.sh                     #   venv + upstream key + systemd user service
+│   ├── add_key.py                   #   issue a key for a user/app
+│   ├── tailscale_keys.py            #   one key per tailnet device (+ CSV to hand out)
+│   └── keys.example.json            #   key file format (real keys.json is git-ignored)
+├── monitoring/
+│   ├── prometheus-scrape.yml        # vllm + llm-gateway scrape jobs
+│   ├── grafana-dashboard.json       # vLLM Command Center (per-user/per-device panels)
+│   └── gateway-bypass-alert.yml     # Grafana alert: traffic bypassing the gateway
 ├── benchmarks/
 │   ├── throughput_bench.py          # decode tok/s at N concurrent users
 │   ├── throughput_result.json       # raw results cited above
@@ -644,7 +702,8 @@ Qwen-3_8_A3B_Model_DGX_Spark_Setup/
 ├── assets/
 │   └── grafana-dashboard-qwen38.png # live dashboard under benchmark load
 └── docs/
-    └── ENGINEERING.md               # full engineering log & raw data
+    ├── ENGINEERING.md               # full engineering log & raw data
+    └── GATEWAY.md                   # metering gateway + Tailscale: setup, clients, ops
 ```
 
 `models/` (the downloaded and quantized weights, ~90 GB) is git-ignored and Docker-ignored.

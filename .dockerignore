@@ -5,3 +5,5 @@ benchmarks/
 docs/
 assets/
 .git/
+gateway/
+monitoring/

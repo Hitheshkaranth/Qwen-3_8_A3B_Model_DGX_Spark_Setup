@@ -15,6 +15,10 @@ PORT="${PORT:-8002}"
 BIND_ADDRS="${BIND_ADDRS:-0.0.0.0}"
 PUBLISH=()
 for addr in $BIND_ADDRS; do PUBLISH+=(-p "$addr:$PORT:8000"); done
+# Optional: require a bearer key on /v1/* (vLLM's --api-key, passed via env so it
+# stays off the command line). /metrics and /health stay open for monitoring.
+ENV_ARGS=()
+[ -n "${VLLM_API_KEY:-}" ] && ENV_ARGS+=(-e VLLM_API_KEY)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODEL_DIR="$SCRIPT_DIR/models/Qwen3.8-35B-A3B-Distill-NVFP4"
 
@@ -28,6 +32,7 @@ exec docker run -d \
   --gpus all \
   --ipc host \
   "${PUBLISH[@]}" \
+  "${ENV_ARGS[@]}" \
   -v "$MODEL_DIR":/models/qwen3.8-35b-a3b:ro \
   "$IMAGE" \
   python3 -m vllm.entrypoints.openai.api_server \
