@@ -1139,15 +1139,15 @@
     {
       "id": 24,
       "type": "stat",
-      "title": "User Input Tokens",
-      "description": "Prompt tokens sent through the gateway, all users and models. Source: llm-gateway (every client: Open WebUI per end user, opencode, API keys).",
+      "title": "User Tokens (input + output)",
+      "description": "Total tokens (prompt + completion) used through the gateway on the currently served model. Source: llm-gateway (every client: Open WebUI per end user, opencode, API keys).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
+        "w": 10,
         "x": 9,
         "y": 45
       },
@@ -1156,7 +1156,7 @@
           "unit": "short",
           "color": {
             "mode": "fixed",
-            "fixedColor": "#5794F2"
+            "fixedColor": "#73BF69"
           },
           "noValue": "0"
         },
@@ -1178,54 +1178,7 @@
       },
       "targets": [
         {
-          "expr": "sum(sum by (user) (llm_user_tokens_total{type=\"input\"} * on (model) group_left () (label_replace(max by (model_name) (vllm:num_requests_running), \"model\", \"$1\", \"model_name\", \"(.*)\") * 0 + 1)))",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "id": 25,
-      "type": "stat",
-      "title": "User Output Tokens",
-      "description": "Completion tokens returned through the gateway, all users and models. Source: llm-gateway (every client: Open WebUI per end user, opencode, API keys).",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 5,
-        "x": 14,
-        "y": 45
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#FF9830"
-          },
-          "noValue": "0"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "expr": "sum(sum by (user) (llm_user_tokens_total{type=\"output\"} * on (model) group_left () (label_replace(max by (model_name) (vllm:num_requests_running), \"model\", \"$1\", \"model_name\", \"(.*)\") * 0 + 1)))",
+          "expr": "sum(sum by (model) (llm_user_tokens_total * on (model) group_left () (label_replace(max by (model_name) (vllm:num_requests_running), \"model\", \"$1\", \"model_name\", \"(.*)\") * 0 + 1)))",
           "refId": "A"
         }
       ]
@@ -1340,7 +1293,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Input (blue) vs output (orange) tokens per client application on the currently served model. Source: llm-gateway (every client: Open WebUI per end user, opencode, API keys).",
+      "description": "Total tokens (input + output) per client application on the currently served model. Source: llm-gateway (every client: Open WebUI per end user, opencode, API keys).",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1353,27 +1306,10 @@
           "min": 0,
           "color": {
             "mode": "fixed",
-            "fixedColor": "#5794F2"
-          },
-          "noValue": "No usage on the current model yet"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "B"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
+            "fixedColor": "#73BF69"
           }
-        ]
+        },
+        "overrides": []
       },
       "options": {
         "displayMode": "gradient",
@@ -1393,15 +1329,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (client) (llm_user_tokens_total{type=\"input\"} * on (model) group_left () (label_replace(max by (model_name) (vllm:num_requests_running), \"model\", \"$1\", \"model_name\", \"(.*)\") * 0 + 1))",
-          "legendFormat": "{{client}} \u00b7 input",
+          "expr": "sum by (client) (llm_user_tokens_total * on (model) group_left () (label_replace(max by (model_name) (vllm:num_requests_running), \"model\", \"$1\", \"model_name\", \"(.*)\") * 0 + 1))",
+          "legendFormat": "{{client}}",
           "refId": "A",
-          "instant": true
-        },
-        {
-          "expr": "sum by (client) (llm_user_tokens_total{type=\"output\"} * on (model) group_left () (label_replace(max by (model_name) (vllm:num_requests_running), \"model\", \"$1\", \"model_name\", \"(.*)\") * 0 + 1))",
-          "legendFormat": "{{client}} \u00b7 output",
-          "refId": "B",
           "instant": true
         }
       ]
@@ -1414,7 +1344,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Cumulative tokens and successful requests per user and client for the currently served model. Source: llm-gateway (every client: Open WebUI per end user, opencode, API keys).",
+      "description": "Total tokens (input + output) and successful requests per user and client for the currently served model. Source: llm-gateway (every client: Open WebUI per end user, opencode, API keys).",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -1436,65 +1366,14 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Input Tokens"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#5794F2"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Output Tokens"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
               "options": "Total Tokens"
             },
             "properties": [
               {
                 "id": "custom.cellOptions",
                 "value": {
-                  "type": "color-text"
+                  "type": "gauge",
+                  "mode": "basic"
                 }
               },
               {
@@ -1503,6 +1382,10 @@
                   "mode": "fixed",
                   "fixedColor": "#73BF69"
                 }
+              },
+              {
+                "id": "min",
+                "value": 0
               }
             ]
           },
@@ -1529,8 +1412,7 @@
             "sum"
           ],
           "fields": [
-            "Input Tokens",
-            "Output Tokens",
+            "Requests",
             "Total Tokens"
           ]
         },
@@ -1543,22 +1425,16 @@
       },
       "targets": [
         {
-          "expr": "sum by (user, client, model) (llm_user_tokens_total{type=\"input\"} * on (model) group_left () (label_replace(max by (model_name) (vllm:num_requests_running), \"model\", \"$1\", \"model_name\", \"(.*)\") * 0 + 1))",
+          "expr": "sum by (user, client, model) (llm_user_tokens_total * on (model) group_left () (label_replace(max by (model_name) (vllm:num_requests_running), \"model\", \"$1\", \"model_name\", \"(.*)\") * 0 + 1))",
           "format": "table",
           "instant": true,
           "refId": "A"
         },
         {
-          "expr": "sum by (user, client, model) (llm_user_tokens_total{type=\"output\"} * on (model) group_left () (label_replace(max by (model_name) (vllm:num_requests_running), \"model\", \"$1\", \"model_name\", \"(.*)\") * 0 + 1))",
-          "format": "table",
-          "instant": true,
-          "refId": "B"
-        },
-        {
           "expr": "sum by (user, client, model) (llm_user_requests_total{status=\"ok\"} * on (model) group_left () (label_replace(max by (model_name) (vllm:num_requests_running), \"model\", \"$1\", \"model_name\", \"(.*)\") * 0 + 1))",
           "format": "table",
           "instant": true,
-          "refId": "C"
+          "refId": "B"
         }
       ],
       "transformations": [
@@ -1577,31 +1453,16 @@
               "user": 0,
               "client": 1,
               "model": 2,
-              "Value #C": 3,
-              "Value #A": 4,
-              "Value #B": 5
+              "Value #B": 3,
+              "Value #A": 4
             },
             "renameByName": {
-              "Value #A": "Input Tokens",
-              "Value #B": "Output Tokens",
               "user": "User",
-              "model": "Model",
               "client": "Client",
-              "Value #C": "Requests"
+              "model": "Model",
+              "Value #B": "Requests",
+              "Value #A": "Total Tokens"
             }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "mode": "binary",
-            "binary": {
-              "left": "Input Tokens",
-              "operator": "+",
-              "right": "Output Tokens"
-            },
-            "alias": "Total Tokens",
-            "replaceFields": false
           }
         }
       ]

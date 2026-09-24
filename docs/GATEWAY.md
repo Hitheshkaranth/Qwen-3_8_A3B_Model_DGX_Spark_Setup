@@ -364,9 +364,9 @@ Counters are re-seeded from `usage.db` at startup, so totals survive restarts.
 **Grafana dashboard**: import [`monitoring/grafana-dashboard.json`](../monitoring/grafana-dashboard.json)
 ("vLLM Command Center"). Its **Per-User Usage (current model)** section has:
 
-- Current Model, Users Tracked, User Input/Output Tokens, Top User
+- Current Model, Users Tracked, User Tokens (input + output), Top User
 - Per-User Token Usage Over Time, Tokens by Client
-- Per-User Token Usage table (user, client, model, requests, input, output, total)
+- Per-User Token Usage table (user, client, model, requests, total tokens)
 - **Direct-to-vLLM Requests (unmetered)**, **Metered Requests**, **Gateway Coverage %**
 
 Every per-user query is filtered to the model vLLM is serving right now: it joins the gateway's
