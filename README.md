@@ -58,6 +58,7 @@ problems that would otherwise silently cost accuracy or stop vLLM from starting 
   - [Throughput vs. Qwen3.6](#throughput-vs-qwen36)
   - [Under Load: Grafana During the Benchmark](#under-load-grafana-during-the-benchmark)
   - [Reasoning & Output Length](#reasoning--output-length)
+  - [Knowledge: MMLU-Pro](#knowledge-mmlu-pro)
   - [Published Scores](#published-scores)
 - [Live Monitoring](#live-monitoring)
 - [Client Usage](#client-usage)
@@ -594,6 +595,57 @@ script: [`reasoning_bench.py`](benchmarks/reasoning_bench.py). Wall times in the
 other traffic on the server and aren't a throughput measure. Use the throughput benchmark above
 for speed.
 
+### Knowledge: MMLU-Pro
+
+[MMLU-Pro](https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro) (TIGER-Lab, NeurIPS 2024) is the
+harder successor to MMLU: 12,032 expert-level questions across 14 subjects, with 10 options each,
+so random guessing scores 10% rather than 25%.
+
+Measured on this deployment on 2026-09-24. This was a stratified sample of **700 questions**:
+50 per category, drawn with a fixed seed. Settings: zero-shot, thinking on, the model card's
+sampling (`temperature=0.6, top_p=0.95, top_k=20`), `max_tokens` 16,384, and 8 requests in
+flight on the live server, sent through the metering gateway.
+
+| | Qwen3.8-35B-A3B (this repo) | Qwen3.6-35B-A3B (official card) |
+|---|---:|---:|
+| **MMLU-Pro accuracy** | **80.9%** (566/700, 95% CI ±2.9) | 85.2% (full set) |
+| excluding the 11 truncated answers | 82.1% (566/689) | |
+| hit the 16,384-token limit | 11 (1.6%) | |
+| avg / median output tokens | 1,155 / 633 | |
+
+| Category | Acc. | Category | Acc. |
+|---|---:|---|---:|
+| Biology | 94% | Business | 82% |
+| Math | 94% | Psychology | 82% |
+| Physics | 92% | Philosophy | 76% |
+| Economics | 90% | Health | 74% |
+| Chemistry | 86% | Engineering | 70% |
+| Computer science | 86% | Law | 70% |
+| | | History | 68% |
+| | | Other | 68% |
+
+Each category has n = 50, so each per-category figure carries about ±12 points of sampling error.
+
+What the numbers show:
+
+- **STEM is strongest**: biology, math and physics all score 92–94%. The weakest areas are
+  history, law, "other" and engineering, at 68–70%. Those rely on recall more than step-by-step
+  reasoning.
+- **Engineering is partly a token-budget problem.** 5 of the 11 truncated answers are
+  engineering questions, and every truncated answer is scored wrong. Qwen recommends 32,768
+  output tokens, so a larger `max_tokens` would likely recover a few points.
+- **The score is 4.3 points below Qwen3.6's official 85.2.** That gap is outside this
+  sample's ±2.9, but the two numbers aren't strictly comparable. Qwen scored the full 12k set
+  with its own prompt and a larger output budget; this run used a 700-question sample capped at
+  16,384 tokens. Running this same script against the Qwen3.6 server would give a like-for-like
+  comparison. That needs Qwen3.8 stopped, as with the reasoning benchmark.
+
+Raw results: [`knowledge_result_qwen38.json`](benchmarks/knowledge_result_qwen38.json) (summary) ·
+[`knowledge_result_qwen38.jsonl`](benchmarks/knowledge_result_qwen38.jsonl) (per question) ·
+script: [`knowledge_bench.py`](benchmarks/knowledge_bench.py). Rerunning resumes from the
+`.jsonl`. The run took 1 h 42 m of wall time alongside live user traffic, so that figure isn't
+a speed measure.
+
 ### Published Scores
 
 No official scores exist for a Qwen3.8 A3B. The closest published references:
@@ -698,6 +750,9 @@ Qwen-3_8_A3B_Model_DGX_Spark_Setup/
 │   ├── throughput_comparison.png    # chart
 │   ├── reasoning_bench.py           # GSM8K / MATH-500 accuracy + long-form length
 │   ├── reasoning_result_qwen38.json # raw reasoning results cited above
+│   ├── knowledge_bench.py           # MMLU-Pro accuracy (700-question stratified sample)
+│   ├── knowledge_result_qwen38.json # MMLU-Pro summary + per-category scores
+│   ├── knowledge_result_qwen38.jsonl # MMLU-Pro per-question records (resume log)
 │   └── make_charts.py               # renders the PNGs from the JSON results
 ├── assets/
 │   └── grafana-dashboard-qwen38.png # live dashboard under benchmark load
