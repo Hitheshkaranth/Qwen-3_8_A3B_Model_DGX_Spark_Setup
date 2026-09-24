@@ -404,15 +404,29 @@ server and monitoring stack.
 | Port | Container | What it is |
 |---|---|---|
 | `8000` | `vllm` | Qwen3.6-35B-A3B-NVFP4 production server ([its repo](https://github.com/Hitheshkaranth/Qwen-3_6_Model_DGX_Spark_Setup)) |
-| **`8002`** | **`vllm-qwen38-a3b`** | **This server**: Qwen3.8-35B-A3B, model name `qwen3.8-35b-a3b` |
+| **`8002`** | **`vllm-qwen38-a3b`** | **This server**: Qwen3.8-35B-A3B, model name `qwen3.8-35b-a3b` (localhost + docker bridge only) |
+| `8080` | `llm-gateway` (systemd) | Metering gateway: the only client entry point; per-user/per-client token metrics |
 | `3001` | `vllm-grafana` | Grafana dashboards (vLLM Command Center) |
 | `9090` | `vllm-prometheus` | Prometheus, scraping `:8000` and `:8002` in the `vllm` job |
 | `9400` | `vllm-dcgm-exporter` | GPU metrics (utilization, temperature, memory) |
 | `9100` | `vllm-node-exporter` | Host CPU / RAM metrics |
 
-Clients on the LAN or over Tailscale reach it at `http://<spark-host>:8002/v1`. The server has no
-API key (`api_key="EMPTY"`), so keep it on a private network, or put a reverse proxy with auth in
-front of it.
+**On this box, clients don't call vLLM directly.** vLLM is published only on `127.0.0.1` and the
+docker bridge (`BIND_ADDRS="127.0.0.1 172.17.0.1" ./run.sh`), and every client uses a
+**metering gateway** on `:8080`: `http://<spark-host>:8080/v1` with a per-user or per-app API key.
+The gateway routes each request to whichever vLLM server serves the requested model, and records
+tokens per user and client, live while responses stream. Open WebUI forwards each end user's
+email, so its chats are attributed per person. Grafana's "Per-User Usage (current model)"
+section reads from the gateway, and a *Gateway Coverage* tile flags any traffic that bypasses it.
+
+| Path | Reachable from | Used by |
+|---|---|---|
+| `:8080` gateway | LAN + Tailscale | Open WebUI, opencode, scripts (API key required) |
+| `127.0.0.1:8002` | this host only | the gateway |
+| `172.17.0.1:8002` | docker bridge only | Prometheus (`/metrics`) |
+
+Without a gateway, run `./run.sh` with the default `BIND_ADDRS=0.0.0.0`. vLLM itself has no API
+key, so keep it on a private network.
 
 ### Memory budget (121 GiB unified)
 
@@ -429,15 +443,18 @@ Two 0.70 servers can't be resident at once, so **Qwen3.6 and Qwen3.8 take turns*
 
 ```bash
 # Qwen3.6 -> Qwen3.8
-docker stop vllm && docker start vllm-qwen38-a3b      # ready in ~4.5 min
+docker stop vllm && docker update --restart no vllm
+docker update --restart unless-stopped vllm-qwen38-a3b && docker start vllm-qwen38-a3b   # ready in ~4.5 min
 
 # Qwen3.8 -> Qwen3.6
-docker stop vllm-qwen38-a3b && docker start vllm      # ready in ~6 min
+docker stop vllm-qwen38-a3b && docker update --restart no vllm-qwen38-a3b
+docker update --restart unless-stopped vllm && docker start vllm                         # ready in ~6 min
 ```
 
 Use `docker stop`/`start` (not `rm`) so each container keeps its exact flags. Requests in flight
-on the stopped server are dropped. To make Qwen3.8 the default after a reboot, give it
-`--restart unless-stopped` and set the other container to `docker update --restart no vllm`.
+on the stopped server are dropped. Only the active container keeps `unless-stopped`, so a reboot
+never brings both up at once. Clients need no change when you swap: the gateway finds the new
+model within 10 seconds.
 
 ### Files on disk
 
